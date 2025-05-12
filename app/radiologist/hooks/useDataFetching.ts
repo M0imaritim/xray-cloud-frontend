@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Study, Stats } from "../types";
 import apiService from "../../utils/apiServices";
-import { calculateStats } from "../utils/dataTransformers";
 
-interface DataFetchingResult {
+interface DataFetchingState {
   studies: Study[];
   loading: boolean;
   error: string | null;
@@ -11,10 +10,20 @@ interface DataFetchingResult {
   fetchData: () => Promise<void>;
 }
 
-export const useDataFetching = (): DataFetchingResult => {
+/**
+ * Custom hook for fetching and managing data
+ */
+export const useDataFetching = (): DataFetchingState => {
+  // State for studies data
   const [studies, setStudies] = useState<Study[]>([]);
+
+  // Loading state
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Error state
   const [error, setError] = useState<string | null>(null);
+
+  // Statistics state
   const [stats, setStats] = useState<Stats>({
     hospitals: 0,
     patients: 0,
@@ -23,36 +32,90 @@ export const useDataFetching = (): DataFetchingResult => {
     instances: 0,
   });
 
-  const fetchData = async (): Promise<void> => {
+  /**
+   * Function to fetch data from the backend
+   */
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Make the API call to your backend
+      // Replace with your actual API endpoint
       const response = await apiService.get("/api/studies/studies/");
 
-      // Process the data
-      const studiesData = Array.isArray(response) ? response : [response];
-      setStudies(studiesData);
+      if (!response.ok) {
+        throw new Error(`Error fetching data: ${response.statusText}`);
+      }
 
-      // Calculate statistics
-      const newStats = calculateStats(studiesData);
-      setStats(newStats);
+      const data = await response.json();
+      setStudies(data.studies || []);
 
-      setLoading(false);
+      // Calculate stats from the fetched data
+      const statsData = calculateStats(data.studies || []);
+      setStats(statsData);
     } catch (err) {
-      console.error("Failed to fetch data:", err);
-      setError("Failed to fetch dashboard data");
+      console.error("Error fetching data:", err);
+      setError(
+        err instanceof Error ? err.message : "An unknown error occurred"
+      );
+    } finally {
       setLoading(false);
     }
-  };
-
-  // Fetch data on hook initialization
-  useEffect(() => {
-    fetchData();
   }, []);
 
-  return { studies, loading, error, stats, fetchData };
-};
+  /**
+   * Calculate statistics from studies data
+   */
+  const calculateStats = (studiesData: Study[]): Stats => {
+    // Count unique patients
+    const uniquePatientIds = new Set();
+    studiesData.forEach((study) => {
+      if (study.patient?.id) {
+        uniquePatientIds.add(study.patient.id.toString());
+      }
+    });
 
-export default useDataFetching;
+    // Count series and instances
+    let seriesCount = 0;
+    let instanceCount = 0;
+
+    studiesData.forEach((study) => {
+      if (study.series) {
+        seriesCount += study.series.length;
+
+        study.series.forEach((series) => {
+          if (series.instances) {
+            instanceCount += series.instances.length;
+          } else if (series.numberOfInstances) {
+            instanceCount += series.numberOfInstances;
+          }
+        });
+      }
+    });
+
+    // For hospitals, you might need to implement a similar logic based on your data structure
+    // This is just a placeholder assuming one hospital per patient
+    const hospitalCount = Math.min(uniquePatientIds.size, 10); // Arbitrary cap for demo
+
+    return {
+      hospitals: hospitalCount,
+      patients: uniquePatientIds.size,
+      studies: studiesData.length,
+      series: seriesCount,
+      instances: instanceCount,
+    };
+  };
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  return {
+    studies,
+    loading,
+    error,
+    stats,
+    fetchData,
+  };
+};

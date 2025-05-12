@@ -20,7 +20,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           isSelected ? "bg-blue-100" : ""
         }`}
         onClick={() => {
-          onSelect({ id, type });
+          onSelect(type, id);
         }}
       >
         {count > 0 ? (

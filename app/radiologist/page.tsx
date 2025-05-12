@@ -22,13 +22,13 @@ export default function RadiologistDashboard() {
   const { studies, loading, error, stats, fetchData } = useDataFetching();
   const { openNodes, selectedItem, toggleNode, selectItem } = useTreeState();
 
-  // Handle node selection
+  // Update your handleNodeSelect function to match the TreeNode component
   const handleNodeSelect = (type: string, id: string | number) => {
     const item: SelectedItem = {
       id,
       type,
-      // You might want to add more properties here depending on your SelectedItem type
-      name: `${type} ${id}`,
+      // Add any additional properties needed for your SelectedItem type
+      name: findItemName(type, id), // A function to find the name based on type and id
     };
     selectItem(item);
 
@@ -36,6 +36,43 @@ export default function RadiologistDashboard() {
     if (type === "series") {
       setActiveTab("images");
     }
+  };
+
+  // Helper function to find item name based on type and id
+  const findItemName = (type: string, id: string | number): string => {
+    // Default name
+    let name = `${type} ${id}`;
+
+    // Find the actual name based on the type and id
+    if (type === "study") {
+      const study = studies.find((s) => s.id.toString() === id.toString());
+      if (study) {
+        name = study.description || study.name || name;
+      }
+    } else if (type === "series") {
+      // Search for the series in all studies
+      for (const study of studies) {
+        if (study.series) {
+          const series = study.series.find(
+            (s) => s.id.toString() === id.toString()
+          );
+          if (series) {
+            name = series.description || series.name || name;
+            break;
+          }
+        }
+      }
+    } else if (type === "patient") {
+      // Similar logic for patients
+      const patient = studies.find(
+        (s) => s.patient && s.patient.id.toString() === id.toString()
+      )?.patient;
+      if (patient) {
+        name = patient.name || `Patient ${id}`;
+      }
+    }
+
+    return name;
   };
 
   // Handle search
@@ -98,20 +135,6 @@ export default function RadiologistDashboard() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div
-        className={`${
-          isSidebarOpen ? "w-64" : "w-16"
-        } transition-width duration-300 ease-in-out`}
-      >
-        <Sidebar
-          isOpen={isSidebarOpen}
-          onToggle={toggleSidebar}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-        />
-      </div>
-
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
         {/* Header */}
